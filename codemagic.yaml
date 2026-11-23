@@ -1,0 +1,54 @@
+# Codemagic ワークフロー: Macなしで iOS アプリをビルドして App Store に提出する
+# 事前に Codemagic の画面で設定するもの:
+#   - Environment variables グループ「app_store_credentials」に
+#     APP_STORE_CONNECT_ISSUER_ID / APP_STORE_CONNECT_KEY_IDENTIFIER / APP_STORE_CONNECT_PRIVATE_KEY
+#     (App Store Connect の「ユーザーとアクセス > 統合 > App Store Connect API」で発行したキー)
+#   - CERTIFICATE_PRIVATE_KEY (署名用証明書を作るための秘密鍵。Codemagic のドキュメント参照)
+#   - APPLE_ID_EMAIL は不要 (APIキー方式を使うため)
+workflows:
+  ios-release:
+    name: iOS Release (App Store)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: codemagic
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.metabo.calendar
+      vars:
+        XCODE_WORKSPACE: "MetaboCalendar.xcodeproj"
+        XCODE_SCHEME: "MetaboCalendar"
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: XcodeGen を入れてプロジェクトを生成
+        script: |
+          brew install xcodegen
+          xcodegen generate
+      - name: 署名ファイルを App Store Connect から取得
+        script: |
+          app-store-connect fetch-signing-files "com.metabo.calendar" \
+            --type IOS_APP_STORE \
+            --create
+      - name: キーチェーンに証明書を入れる
+        script: |
+          keychain initialize
+          keychain add-certificates
+      - name: プロビジョニングプロファイルを適用
+        script: |
+          xcode-project use-profiles
+      - name: IPA をビルド
+        script: |
+          xcode-project build-ipa \
+            --project "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        # 審査まで自動で出す場合は次も true にする (最初は TestFlight で確認してから手動提出がおすすめ)
+        submit_to_app_store: false
