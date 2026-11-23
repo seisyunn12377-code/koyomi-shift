@@ -22,6 +22,17 @@ workflows:
       xcode: latest
       cocoapods: default
     scripts:
+      - name: フォルダ構成を自動で整える (フラットに上がったファイル用)
+        script: |
+          mkdir -p Sources/Models Sources/Views Assets.xcassets/AppIcon.appiconset
+          [ -f MetaboCalendarApp.swift ] && mv MetaboCalendarApp.swift Sources/ || true
+          [ -f Info.plist ] && mv Info.plist Sources/ || true
+          for f in Holidays.swift WorkTime.swift; do [ -f "$f" ] && mv "$f" Sources/Models/ || true; done
+          for f in CalendarView.swift DayEditorView.swift MonthListView.swift RootView.swift SettingsView.swift WeekAdjustView.swift; do [ -f "$f" ] && mv "$f" Sources/Views/ || true; done
+          [ -f Contents.json ] && mv Contents.json Assets.xcassets/AppIcon.appiconset/ || true
+          [ -f icon-1024.png ] && mv icon-1024.png Assets.xcassets/AppIcon.appiconset/ || true
+          if [ ! -f Assets.xcassets/Contents.json ]; then printf '{\n  "info" : {\n    "author" : "xcode",\n    "version" : 1\n  }\n}\n' > Assets.xcassets/Contents.json; fi
+          ls -R Sources Assets.xcassets
       - name: XcodeGen を入れてプロジェクトを生成
         script: |
           brew install xcodegen
